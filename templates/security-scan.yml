@@ -1,0 +1,247 @@
+parameters:
+
+- name: workingDirectory
+  type: string
+
+- name: enableTFLint
+  type: boolean
+  default: true
+
+- name: enableTfsec
+  type: boolean
+  default: true
+
+- name: enableCheckov
+  type: boolean
+  default: true
+
+- name: enableTerrascan
+  type: boolean
+  default: true
+
+- name: enableGitleaks
+  type: boolean
+  default: true
+
+- name: enableTruffleHog
+  type: boolean
+  default: true
+
+- name: failOnSecurityFinding
+  type: boolean
+  default: true
+
+
+steps:
+
+# ============================================================
+# TFLINT
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    curl -s \
+      https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh \
+      | bash
+
+    tflint --version
+
+  displayName: 'Install TFLint'
+
+  condition: |
+    ${{ eq(parameters.enableTFLint, true) }}
+
+
+- bash: |
+
+    cd "${{ parameters.workingDirectory }}"
+
+    tflint --init
+
+    tflint --format compact
+
+  displayName: 'Run TFLint'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableTFLint, true) }}
+
+
+# ============================================================
+# TFSEC
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    curl -s \
+      https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh \
+      | bash
+
+    tfsec --version
+
+  displayName: 'Install tfsec'
+
+  condition: |
+    ${{ eq(parameters.enableTfsec, true) }}
+
+
+- bash: |
+
+    tfsec "${{ parameters.workingDirectory }}"
+
+  displayName: 'Run tfsec'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableTfsec, true) }}
+
+
+# ============================================================
+# CHECKOV
+# ============================================================
+
+- bash: |
+
+    python3 -m pip install --upgrade pip
+
+    pip3 install checkov
+
+    checkov --version
+
+  displayName: 'Install Checkov'
+
+  condition: |
+    ${{ eq(parameters.enableCheckov, true) }}
+
+
+- bash: |
+
+    checkov \
+      -d "${{ parameters.workingDirectory }}" \
+      --framework terraform
+
+  displayName: 'Run Checkov'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableCheckov, true) }}
+
+
+# ============================================================
+# TERRASCAN
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    curl --location \
+      https://github.com/tenable/terrascan/releases/latest/download/terrascan_linux_x86_64.tar.gz \
+      --output terrascan.tar.gz
+
+    tar -xzf terrascan.tar.gz
+
+    sudo mv terrascan /usr/local/bin/
+
+    terrascan version
+
+  displayName: 'Install Terrascan'
+
+  condition: |
+    ${{ eq(parameters.enableTerrascan, true) }}
+
+
+- bash: |
+
+    terrascan scan \
+      -i terraform \
+      -d "${{ parameters.workingDirectory }}"
+
+  displayName: 'Run Terrascan'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableTerrascan, true) }}
+
+
+# ============================================================
+# GITLEAKS
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    GITLEAKS_VERSION="8.24.2"
+
+    curl -L \
+      "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+      -o gitleaks.tar.gz
+
+    tar -xzf gitleaks.tar.gz
+
+    sudo mv gitleaks /usr/local/bin/
+
+    gitleaks version
+
+  displayName: 'Install Gitleaks'
+
+  condition: |
+    ${{ eq(parameters.enableGitleaks, true) }}
+
+
+- bash: |
+
+    gitleaks detect \
+      --source "$(Build.SourcesDirectory)" \
+      --verbose \
+      --redact
+
+  displayName: 'Run Gitleaks'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableGitleaks, true) }}
+
+
+# ============================================================
+# TRUFFLEHOG
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    curl -sSfL \
+      https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh \
+      | sh -s -- -b /usr/local/bin
+
+    trufflehog --version
+
+  displayName: 'Install TruffleHog'
+
+  condition: |
+    ${{ eq(parameters.enableTruffleHog, true) }}
+
+
+- bash: |
+
+    trufflehog filesystem \
+      "${{ parameters.workingDirectory }}" \
+      --results=verified,unknown
+
+  displayName: 'Run TruffleHog'
+
+  continueOnError: ${{ not(parameters.failOnSecurityFinding) }}
+
+  condition: |
+    ${{ eq(parameters.enableTruffleHog, true) }}

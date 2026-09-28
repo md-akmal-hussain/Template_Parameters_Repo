@@ -1,0 +1,9 @@
+variables:
+
+  terraformWorkingDirectory: '$(System.DefaultWorkingDirectory)/terraform/environment/dev'
+
+  terraformVersion: '1.9.8'
+
+  terraformPlanFile: '$(Build.ArtifactStagingDirectory)/tfplan'
+
+  environmentName: 'terraform-production'

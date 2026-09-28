@@ -1,0 +1,97 @@
+parameters:
+
+- name: terraformVersion
+  type: string
+
+- name: workingDirectory
+  type: string
+
+
+steps:
+
+# ============================================================
+# Terraform Installer
+# ============================================================
+
+- task: TerraformInstaller@1
+
+  displayName: 'Install Terraform'
+
+  inputs:
+
+    terraformVersion: ${{ parameters.terraformVersion }}
+
+
+# ============================================================
+# Terraform Version
+# ============================================================
+
+- script: |
+
+    terraform version
+
+  displayName: 'Terraform Version'
+
+
+# ============================================================
+# Terraform Init
+# ============================================================
+
+- task: TerraformTaskV5@5
+
+  displayName: 'Terraform Init'
+
+  inputs:
+
+    provider: 'azurerm'
+
+    command: 'init'
+
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+    backendServiceArm: 'Yaml_Svc'
+
+    backendAzureRmResourceGroupName: 'rg-pipelinestg'
+
+    backendAzureRmStorageAccountName: 'st-stgnagpipeline'
+
+    backendAzureRmContainerName: 'cntn-production-container'
+
+    backendAzureRmKey: 'key-dev.terraform.tfstate'
+
+
+# ============================================================
+# Terraform Fmt
+# ============================================================
+
+- bash: |
+
+    set -e
+
+    cd "${{ parameters.workingDirectory }}"
+
+    echo "Checking Terraform formatting..."
+
+    terraform fmt \
+      -check \
+      -diff \
+      -recursive
+
+  displayName: 'Terraform Format Check'
+
+
+# ============================================================
+# Terraform Validate
+# ============================================================
+
+- task: TerraformTaskV5@5
+
+  displayName: 'Terraform Validate'
+
+  inputs:
+
+    provider: 'azurerm'
+
+    command: 'validate'
+
+    workingDirectory: ${{ parameters.workingDirectory }}

@@ -1,0 +1,5 @@
+variables:
+
+  terraformEnvironment: 'dev'
+
+  environmentName: 'terraform-production'

@@ -1,0 +1,88 @@
+parameters:
+
+- name: terraformVersion
+  type: string
+
+- name: workingDirectory
+  type: string
+
+
+steps:
+
+# ============================================================
+# Terraform Installer
+# ============================================================
+
+- task: TerraformInstaller@1
+
+  displayName: 'Install Terraform'
+
+  inputs:
+
+    terraformVersion: ${{ parameters.terraformVersion }}
+
+
+# ============================================================
+# Terraform Init
+# ============================================================
+
+- task: TerraformTaskV5@5
+
+  displayName: 'Terraform Init'
+
+  inputs:
+
+    provider: 'azurerm'
+
+    command: 'init'
+
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+    backendServiceArm: 'Yaml_Svc'
+
+    backendAzureRmResourceGroupName: 'rg-pipelinestg'
+
+    backendAzureRmStorageAccountName: 'st-stgnagpipeline'
+
+    backendAzureRmContainerName: 'cntn-production-container'
+
+    backendAzureRmKey: 'key-dev.terraform.tfstate'
+
+
+# ============================================================
+# Terraform Plan
+# ============================================================
+
+- task: TerraformTaskV5@5
+
+  displayName: 'Terraform Plan'
+
+  inputs:
+
+    provider: 'azurerm'
+
+    command: 'plan'
+
+    workingDirectory: ${{ parameters.workingDirectory }}
+
+    commandOptions: |
+      -out="$(Build.ArtifactStagingDirectory)/tfplan"
+
+    environmentServiceNameAzureRM: 'Yaml_Svc'
+
+
+# ============================================================
+# Publish Plan Artifact
+# ============================================================
+
+- task: PublishBuildArtifacts@1
+
+  displayName: 'Publish Terraform Plan'
+
+  inputs:
+
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/tfplan'
+
+    ArtifactName: 'terraform-plan'
+
+    publishLocation: 'Container'
