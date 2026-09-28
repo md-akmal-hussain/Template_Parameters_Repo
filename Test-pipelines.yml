@@ -9,7 +9,7 @@ pr: none
 
 variables:
   - name: terrafromDirectory
-    value: '$(System.DefaulWorkingDirectory)/environment/dev'
+    value: '$(System.DefaultWorkingDirectory)/environment/dev'
 
   - name: backendKey1
     value: preprod.tfstate
