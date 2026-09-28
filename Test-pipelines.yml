@@ -36,7 +36,7 @@ stages:
           inputs:
             provider: 'azurerm'
             command: 'validate'
-            workingDirectory: $(terrafromDirectory)
+            workingDirectory: '$(System.DefaultWorkingDirectory)/environment/dev'
         
   
 
