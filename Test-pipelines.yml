@@ -26,17 +26,14 @@ stages:
             backendAzureRmContainerName: 'production-container'
             backendAzureRmKey: 'akmal'
 
-      - job: terrafornValidate
-        displayName: Terraform Validate
-        dependsOn: terraformInit
-        condition: succeeded()
-        steps:
         - task: TerraformTask@5
           displayName: Terraform Validate Task
           inputs:
             provider: 'azurerm'
             command: 'validate'
             workingDirectory: '$(System.DefaultWorkingDirectory)/environment/dev'
+
+      
         
   
 
