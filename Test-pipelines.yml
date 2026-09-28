@@ -1,0 +1,52 @@
+name: Variable_Varable_Group_Parameters_Template_Pipeline $(Date:yyyyMMdd)-$(Rev:r)
+
+pool: Yaml_Pool
+
+trigger:
+  - features/*
+  - main
+
+pr: none
+
+variables:
+  - name: terrafromDirectory
+    value: '$(System.DefaulWorkingDirectory)/parent_module/preprod'
+
+  - name: backendKey1
+    value: preprod.tfstate
+
+  - group: Terraform-Variables
+
+stages:
+  - stage: terraformInitValidate
+    displayName: Terraform Init Validate
+    jobs:
+      - job: terraformInit
+        displayName: Terraform Init Job
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Init Task
+          inputs:
+            provider: 'azurerm'
+            command: 'init'
+            workingDirectory: $(terrafromDirectory)
+            backendServiceArm: $(serviceConnection)
+            backendAzureRmResourceGroupName: $(ResourceGroupName)
+            backendAzureRmStorageAccountName: $(StorageAccountName)
+            backendAzureRmContainerName: $(ContainerName)
+            backendAzureRmKey: $(backendKey1)
+
+      - job: terrafornValidate
+        displayName: Terraform Validate
+        dependsOn: terraformInit
+        condition: succeeded()
+        steps:
+        - task: TerraformTask@5
+          displayName: Terraform Validate Task
+          inputs:
+            provider: 'azurerm'
+            command: 'validate'
+            workingDirectory: $(terrafromDirectory)
+        
+  
+
