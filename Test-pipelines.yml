@@ -2,15 +2,14 @@ name: Variable_Varable_Group_Parameters_Template_Pipeline $(Date:yyyyMMdd)-$(Rev
 
 pool: Yaml_Pool
 
-trigger:
-  - features/*
-  - main
+trigger: none
+
 
 pr: none
 
 variables:
   - name: terrafromDirectory
-    value: '$(System.DefaulWorkingDirectory)/parent_module/preprod'
+    value: '$(System.DefaulWorkingDirectory)/environment/dev'
 
   - name: backendKey1
     value: preprod.tfstate
