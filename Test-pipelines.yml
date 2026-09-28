@@ -7,15 +7,6 @@ trigger: none
 
 pr: none
 
-variables:
-  - name: terrafromDirectory
-    value: '$(System.DefaultWorkingDirectory)/environment/dev'
-
-  - name: backendKey1
-    value: preprod.tfstate
-
-  - group: Terraform-Variables
-
 stages:
   - stage: terraformInitValidate
     displayName: Terraform Init Validate
@@ -28,12 +19,12 @@ stages:
           inputs:
             provider: 'azurerm'
             command: 'init'
-            workingDirectory: $(terrafromDirectory)
-            backendServiceArm: $(serviceConnection)
-            backendAzureRmResourceGroupName: $(ResourceGroupName)
-            backendAzureRmStorageAccountName: $(StorageAccountName)
-            backendAzureRmContainerName: $(ContainerName)
-            backendAzureRmKey: $(backendKey1)
+            workingDirectory: '$(System.DefaultWorkingDirectory)/environment/dev'
+            backendServiceArm: 'Yaml_Svc'
+            backendAzureRmResourceGroupName: 'pipelinestg'
+            backendAzureRmStorageAccountName: 'stgnagpipeline'
+            backendAzureRmContainerName: 'production-container'
+            backendAzureRmKey: 'akmal'
 
       - job: terrafornValidate
         displayName: Terraform Validate
