@@ -521,7 +521,7 @@ stages:
           # Terraform Init
           # --------------------------------------------------
 
-          - task: TerraformTaskV5@5
+          - task: TerraformTaskV4@4
 
             displayName: 'Terraform Init'
 
@@ -548,7 +548,7 @@ stages:
           # Terraform Apply
           # --------------------------------------------------
 
-          - task: TerraformTaskV5@5
+          - task: TerraformTaskV4@4
 
             displayName: 'Terraform Apply'
 
