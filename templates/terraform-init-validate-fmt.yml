@@ -37,7 +37,7 @@ steps:
 # Terraform Init
 # ============================================================
 
-- task: TerraformTaskV5@5
+- task: TerraformTaskV4@4
 
   displayName: 'Terraform Init'
 
@@ -84,7 +84,7 @@ steps:
 # Terraform Validate
 # ============================================================
 
-- task: TerraformTaskV5@5
+- task: TerraformTaskV4@4
 
   displayName: 'Terraform Validate'
 
