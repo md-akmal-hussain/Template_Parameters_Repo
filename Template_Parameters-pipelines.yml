@@ -1,0 +1,565 @@
+# ============================================================
+# Terraform Production-Level CI/CD Pipeline
+# ============================================================
+
+name: Template_Parameters-pipelines-$(Date:yyyyMMdd).$(Rev:r)
+
+
+# ============================================================
+# CI TRIGGER
+# ============================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+
+
+# ===========================================================
+# PR TRIGGER
+# ===========================================================
+
+pr:
+  branches:
+    include:
+      - main
+
+
+# ============================================================
+# PIPELINE PARAMETERS
+# ============================================================
+
+parameters:
+
+# ------------------------------------------------------------
+# Terraform
+# ------------------------------------------------------------
+
+- name: terraformVersion
+  displayName: Terraform Version
+  type: string
+  default: '1.9.8'
+
+- name: workingDirectory
+  displayName: Terraform Working Directory
+  type: string
+  default: '$(System.DefaultWorkingDirectory)/terraform/environment/dev'
+
+
+# ------------------------------------------------------------
+# Security Tools
+# ------------------------------------------------------------
+
+- name: enableTFLint
+  displayName: Enable TFLint
+  type: boolean
+  default: true
+
+- name: enableTfsec
+  displayName: Enable tfsec
+  type: boolean
+  default: true
+
+- name: enableCheckov
+  displayName: Enable Checkov
+  type: boolean
+  default: true
+
+- name: enableTerrascan
+  displayName: Enable Terrascan
+  type: boolean
+  default: true
+
+- name: enableGitleaks
+  displayName: Enable Gitleaks
+  type: boolean
+  default: true
+
+- name: enableTruffleHog
+  displayName: Enable TruffleHog
+  type: boolean
+  default: true
+
+
+# ------------------------------------------------------------
+# Cost Tools
+# ------------------------------------------------------------
+
+- name: enableInfracost
+  displayName: Enable Infracost
+  type: boolean
+  default: true
+
+- name: enableOpenCost
+  displayName: Enable OpenCost
+  type: boolean
+  default: false
+
+
+# ------------------------------------------------------------
+# Security Failure Behavior
+# ------------------------------------------------------------
+
+- name: failOnSecurityFinding
+  displayName: Fail Pipeline on Security Finding
+  type: boolean
+  default: true
+
+
+# ============================================================
+# VARIABLES
+# ============================================================
+
+variables:
+
+# Common YAML variables
+- template: variables/common-variables.yml
+
+# Azure DevOps Variable Group
+- group: terraform-common-vg
+
+
+# ============================================================
+# STAGE 1
+# Terraform Init + Validate + Fmt
+# ============================================================
+
+stages:
+
+- stage: TerraformInitValidateFmt
+
+  displayName: 'Stage 1 - Terraform Init Validate Fmt'
+
+  dependsOn: []
+
+  condition: succeeded()
+
+  jobs:
+
+  - job: TerraformInitValidateFmt
+
+    displayName: 'Terraform Init Validate Fmt'
+
+    pool:
+      name: Yaml_Pool
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - template: templates/terraform-init-validate-fmt.yml
+
+      parameters:
+        terraformVersion: ${{ parameters.terraformVersion }}
+        workingDirectory: ${{ parameters.workingDirectory }}
+
+
+# ============================================================
+# STAGE 2
+# Security Scan
+# ============================================================
+
+- stage: SecurityScan
+
+  displayName: 'Stage 2 - Security Scan'
+
+  dependsOn:
+    - TerraformInitValidateFmt
+
+  condition: succeeded()
+
+  jobs:
+
+  - job: SecurityScan
+
+    displayName: 'Terraform Security Scan'
+
+    pool:
+      name: Yaml_Pool
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - template: templates/security-scan.yml
+
+      parameters:
+
+        workingDirectory: ${{ parameters.workingDirectory }}
+
+        enableTFLint: ${{ parameters.enableTFLint }}
+
+        enableTfsec: ${{ parameters.enableTfsec }}
+
+        enableCheckov: ${{ parameters.enableCheckov }}
+
+        enableTerrascan: ${{ parameters.enableTerrascan }}
+
+        enableGitleaks: ${{ parameters.enableGitleaks }}
+
+        enableTruffleHog: ${{ parameters.enableTruffleHog }}
+
+        failOnSecurityFinding: ${{ parameters.failOnSecurityFinding }}
+
+
+# ============================================================
+# STAGE 3
+# Terraform Plan
+# ============================================================
+
+- stage: TerraformPlan
+
+  displayName: 'Stage 3 - Terraform Plan'
+
+  dependsOn:
+    - SecurityScan
+
+  condition: succeeded()
+
+  jobs:
+
+  - job: TerraformPlan
+
+    displayName: 'Terraform Plan'
+
+    pool:
+      name: Yaml_Pool
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - template: templates/terraform-plan.yml
+
+      parameters:
+
+        terraformVersion: ${{ parameters.terraformVersion }}
+
+        workingDirectory: ${{ parameters.workingDirectory }}
+
+
+# ============================================================
+# STAGE 4
+# Cost Analysis
+# ============================================================
+
+- stage: CostAnalysis
+
+  displayName: 'Stage 4 - Cost Analysis'
+
+  dependsOn:
+    - TerraformPlan
+
+  condition: succeeded()
+
+  jobs:
+
+  - job: CostAnalysis
+
+    displayName: 'Terraform Cost Analysis'
+
+    pool:
+      name: Yaml_Pool
+
+    steps:
+
+    # --------------------------------------------------------
+    # Infracost Installation
+    # --------------------------------------------------------
+
+    - bash: |
+
+        set -e
+
+        echo "Installing Infracost..."
+
+        curl -fsSL \
+          https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh \
+          | sh
+
+        infracost --version
+
+      displayName: 'Install Infracost'
+
+      condition: |
+        ${{ eq(parameters.enableInfracost, true) }}
+
+
+    # --------------------------------------------------------
+    # Infracost Breakdown
+    # --------------------------------------------------------
+
+    - bash: |
+
+        set -e
+
+        echo "Running Infracost..."
+
+        infracost breakdown \
+          --path "${{ parameters.workingDirectory }}" \
+          --format json \
+          --out-file "$(Build.ArtifactStagingDirectory)/infracost.json"
+
+        infracost output \
+          --path "$(Build.ArtifactStagingDirectory)/infracost.json" \
+          --format table
+
+      displayName: 'Run Infracost'
+
+      env:
+        INFRACOST_API_KEY: $(infracostApiKey)
+
+      condition: |
+        ${{ eq(parameters.enableInfracost, true) }}
+
+
+    # --------------------------------------------------------
+    # Publish Infracost Report
+    # --------------------------------------------------------
+
+    - task: PublishBuildArtifacts@1
+
+      displayName: 'Publish Infracost Report'
+
+      inputs:
+
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/infracost.json'
+
+        ArtifactName: 'infracost-report'
+
+        publishLocation: 'Container'
+
+      condition: |
+        and(
+          succeededOrFailed(),
+          ${{ eq(parameters.enableInfracost, true) }}
+        )
+
+
+    # --------------------------------------------------------
+    # OpenCost
+    # --------------------------------------------------------
+
+    - bash: |
+
+        set -e
+
+        echo "OpenCost is enabled."
+
+        if [ -z "$(openCostEndpoint)" ]; then
+          echo "ERROR: openCostEndpoint is not configured."
+          exit 1
+        fi
+
+        curl --fail \
+          "$(openCostEndpoint)" \
+          -o "$(Build.ArtifactStagingDirectory)/opencost.json"
+
+        echo "OpenCost data collected."
+
+      displayName: 'Run OpenCost'
+
+      condition: |
+        ${{ eq(parameters.enableOpenCost, true) }}
+
+
+    # --------------------------------------------------------
+    # Publish OpenCost Report
+    # --------------------------------------------------------
+
+    - task: PublishBuildArtifacts@1
+
+      displayName: 'Publish OpenCost Report'
+
+      inputs:
+
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/opencost.json'
+
+        ArtifactName: 'opencost-report'
+
+        publishLocation: 'Container'
+
+      condition: |
+        and(
+          succeededOrFailed(),
+          ${{ eq(parameters.enableOpenCost, true) }}
+        )
+
+
+# ============================================================
+# STAGE 5
+# Manual Approval
+# ONLY MAIN
+# ============================================================
+
+- stage: ManualApproval
+
+  displayName: 'Stage 5 - Manual Approval'
+
+  dependsOn:
+    - CostAnalysis
+
+  condition: |
+    and(
+      succeeded(),
+      eq(
+        variables['Build.SourceBranch'],
+        'refs/heads/main'
+      )
+    )
+
+  jobs:
+
+  - job: ProductionApproval
+
+    displayName: 'Production Deployment Approval'
+
+    pool: server
+
+    timeoutInMinutes: 1440
+
+    steps:
+
+    - task: ManualValidation@1
+
+      displayName: 'Manual Production Approval'
+
+      timeoutInMinutes: 1200
+
+      inputs:
+
+        notifyUsers: |
+          $(approverEmail)
+
+        approvers: |
+          $(approverEmail)
+
+        allowApproversToApproveTheirOwnRuns: false
+
+        instructions: |
+          ==========================================
+          PRODUCTION DEPLOYMENT APPROVAL
+          ==========================================
+
+          Please review:
+
+          1. Terraform Init
+          2. Terraform Validate
+          3. Terraform Format
+          4. Security Scan
+          5. Terraform Plan
+          6. Infracost
+          7. OpenCost if enabled
+
+          Verify the Terraform Plan carefully.
+
+          Approve only if the production
+          deployment is authorized.
+
+        onTimeout: reject
+
+
+# ============================================================
+# STAGE 6
+# Terraform Apply
+# ONLY MAIN
+# ============================================================
+
+- stage: TerraformApply
+
+  displayName: 'Stage 6 - Terraform Apply'
+
+  dependsOn:
+    - ManualApproval
+
+  condition: |
+    and(
+      succeeded(),
+      eq(
+        variables['Build.SourceBranch'],
+        'refs/heads/main'
+      )
+    )
+
+  jobs:
+
+  - deployment: TerraformApply
+
+    displayName: 'Terraform Apply Production'
+
+    environment: 'terraform-production'
+
+    strategy:
+
+      runOnce:
+
+        deploy:
+
+          steps:
+
+          - checkout: self
+
+
+          # --------------------------------------------------
+          # Terraform Installer
+          # --------------------------------------------------
+
+          - task: TerraformInstaller@1
+
+            displayName: 'Install Terraform'
+
+            inputs:
+
+              terraformVersion: ${{ parameters.terraformVersion }}
+
+
+          # --------------------------------------------------
+          # Terraform Init
+          # --------------------------------------------------
+
+          - task: TerraformTaskV4@4
+
+            displayName: 'Terraform Init'
+
+            inputs:
+
+              provider: 'azurerm'
+
+              command: 'init'
+
+              workingDirectory: ${{ parameters.workingDirectory }}
+
+              backendServiceArm: 'Yaml_Svc'
+
+              backendAzureRmResourceGroupName: 'rg-pipelinestg'
+
+              backendAzureRmStorageAccountName: 'st-stgnagpipeline'
+
+              backendAzureRmContainerName: 'cntn-production-container'
+
+              backendAzureRmKey: 'key-dev.terraform.tfstate'
+
+
+          # --------------------------------------------------
+          # Terraform Apply
+          # --------------------------------------------------
+
+          - task: TerraformTaskV4@4
+
+            displayName: 'Terraform Apply'
+
+            inputs:
+
+              provider: 'azurerm'
+
+              command: 'apply'
+
+              workingDirectory: ${{ parameters.workingDirectory }}
+
+              commandOptions: '-auto-approve'
+
+              environmentServiceNameAzureRM: 'Yaml_Svc'
